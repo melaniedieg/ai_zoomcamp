@@ -7,6 +7,31 @@
 <body>
     <h1>NYC Restaurant Explorer</h1>
 
+    <form method="get">
+        <input
+            type="text"
+            name="q"
+            placeholder="Search by name"
+            value="{{ query }}"
+        >
+
+        <select name="borough">
+            <option value="">All boroughs</option>
+            {% for borough in boroughs %}
+            <option value="{{ borough }}" {% if borough == selected_borough %}selected{% endif %}>{{ borough }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="cuisine">
+            <option value="">All cuisines</option>
+            {% for cuisine in cuisines %}
+            <option value="{{ cuisine }}" {% if cuisine == selected_cuisine %}selected{% endif %}>{{ cuisine }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Search</button>
+    </form>
+
     {% if restaurants %}
     <table>
         <thead>
