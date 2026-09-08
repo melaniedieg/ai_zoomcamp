@@ -35,11 +35,14 @@ def restaurant_list(request):
     restaurants_data = []
     for restaurant in restaurants:
         flag_names = [flag.name for flag in restaurant.want_to_go_flags.all()]
+        flag_count = len(flag_names)
         restaurants_data.append(
             {
                 "restaurant": restaurant,
                 "flag_names": flag_names,
+                "flag_count": flag_count,
                 "is_flagged_by_visitor": bool(visitor_name) and visitor_name in flag_names,
+                "is_shared_match": flag_count >= 2,
             }
         )
 

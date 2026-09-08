@@ -219,3 +219,74 @@ class WantToGoFlagTests(TestCase):
         )
         response = self.client.get(reverse("restaurants:restaurant_list"))
         self.assertContains(response, "Remove Want to Go")
+
+
+class SharedMatchTests(TestCase):
+    def setUp(self):
+        self.pizza = Restaurant.objects.create(
+            name="Joe's Pizza",
+            borough="Manhattan",
+            cuisine="Pizza",
+            address="7 Carmine St, 10014",
+            external_id="1",
+        )
+        self.ramen = Restaurant.objects.create(
+            name="Ivan Ramen",
+            borough="Manhattan",
+            cuisine="Japanese",
+            address="25 Clinton St, 10002",
+            external_id="2",
+        )
+
+    @staticmethod
+    def _row_opening_tag(html, restaurant_name):
+        """Return the <tr ...> opening tag for the row containing restaurant_name."""
+        name_index = html.index(restaurant_name)
+        tr_start = html.rfind("<tr", 0, name_index)
+        tr_end = html.index(">", tr_start)
+        return html[tr_start : tr_end + 1]
+
+    def test_restaurant_with_one_flag_is_not_a_shared_match(self):
+        WantToGo.objects.create(restaurant=self.pizza, name="Alex")
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertNotContains(response, 'class="shared-match"')
+        self.assertNotContains(response, "Shared match")
+
+    def test_restaurant_with_two_flags_is_a_shared_match(self):
+        WantToGo.objects.create(restaurant=self.pizza, name="Alex")
+        WantToGo.objects.create(restaurant=self.pizza, name="Sam")
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertContains(response, 'class="shared-match"')
+        self.assertContains(response, "Shared match (2 people)")
+
+    def test_restaurant_with_three_flags_is_a_shared_match(self):
+        WantToGo.objects.create(restaurant=self.pizza, name="Alex")
+        WantToGo.objects.create(restaurant=self.pizza, name="Sam")
+        WantToGo.objects.create(restaurant=self.pizza, name="Jo")
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertContains(response, "Shared match (3 people)")
+
+    def test_only_the_shared_restaurant_is_highlighted(self):
+        WantToGo.objects.create(restaurant=self.pizza, name="Alex")
+        WantToGo.objects.create(restaurant=self.pizza, name="Sam")
+        WantToGo.objects.create(restaurant=self.ramen, name="Alex")
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        content = response.content.decode()
+        pizza_row = self._row_opening_tag(content, "Joe&#x27;s Pizza")
+        ramen_row = self._row_opening_tag(content, "Ivan Ramen")
+        self.assertIn('class="shared-match"', pizza_row)
+        self.assertNotIn("shared-match", ramen_row)
+
+    def test_unflagging_below_two_removes_shared_match_state(self):
+        alex_flag = WantToGo.objects.create(restaurant=self.pizza, name="Alex")
+        WantToGo.objects.create(restaurant=self.pizza, name="Sam")
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertContains(response, 'class="shared-match"')
+
+        alex_flag.delete()
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertNotContains(response, 'class="shared-match"')
+
+    def test_restaurant_with_no_flags_is_not_a_shared_match(self):
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertNotContains(response, 'class="shared-match"')
