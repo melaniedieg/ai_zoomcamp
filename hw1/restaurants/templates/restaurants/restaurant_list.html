@@ -7,6 +7,22 @@
 <body>
     <h1>NYC Restaurant Explorer</h1>
 
+    <form method="post" action="{% url 'restaurants:set_visitor_name' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <label>
+            Your name:
+            <input type="text" name="visitor_name" value="{{ visitor_name }}" placeholder="Enter your name">
+        </label>
+        <button type="submit">Save name</button>
+    </form>
+
+    {% if visitor_name %}
+    <p>Flagging as: {{ visitor_name }}</p>
+    {% else %}
+    <p>Enter your name to flag restaurants as Want to Go.</p>
+    {% endif %}
+
     <form method="get">
         <input
             type="text"
@@ -32,7 +48,7 @@
         <button type="submit">Search</button>
     </form>
 
-    {% if restaurants %}
+    {% if restaurants_data %}
     <table>
         <thead>
             <tr>
@@ -40,15 +56,34 @@
                 <th>Borough</th>
                 <th>Cuisine</th>
                 <th>Address</th>
+                <th>Want to Go</th>
             </tr>
         </thead>
         <tbody>
-            {% for restaurant in restaurants %}
+            {% for item in restaurants_data %}
             <tr>
-                <td>{{ restaurant.name }}</td>
-                <td>{{ restaurant.borough }}</td>
-                <td>{{ restaurant.cuisine }}</td>
-                <td>{{ restaurant.address }}</td>
+                <td>{{ item.restaurant.name }}</td>
+                <td>{{ item.restaurant.borough }}</td>
+                <td>{{ item.restaurant.cuisine }}</td>
+                <td>{{ item.restaurant.address }}</td>
+                <td>
+                    {% if item.flag_names %}
+                    <span>{{ item.flag_names|join:", " }}</span>
+                    {% else %}
+                    <span>No one yet</span>
+                    {% endif %}
+                    {% if visitor_name %}
+                    <form method="post" action="{% url 'restaurants:toggle_want_to_go' item.restaurant.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        {% if item.is_flagged_by_visitor %}
+                        <button type="submit">Remove Want to Go</button>
+                        {% else %}
+                        <button type="submit">Want to Go</button>
+                        {% endif %}
+                    </form>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

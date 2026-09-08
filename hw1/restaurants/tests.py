@@ -1,7 +1,8 @@
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Restaurant
+from .models import Restaurant, WantToGo
 
 
 class SanityTests(TestCase):
@@ -114,3 +115,107 @@ class RestaurantSearchAndFilterTests(TestCase):
         self.assertContains(
             response, '<option value="Japanese" selected>Japanese</option>'
         )
+
+
+class WantToGoFlagTests(TestCase):
+    def setUp(self):
+        self.pizza = Restaurant.objects.create(
+            name="Joe's Pizza",
+            borough="Manhattan",
+            cuisine="Pizza",
+            address="7 Carmine St, 10014",
+            external_id="1",
+        )
+        self.ramen = Restaurant.objects.create(
+            name="Ivan Ramen",
+            borough="Manhattan",
+            cuisine="Japanese",
+            address="25 Clinton St, 10002",
+            external_id="2",
+        )
+
+    def _set_visitor_name(self, name):
+        self.client.post(reverse("restaurants:set_visitor_name"), {"visitor_name": name})
+
+    def test_set_visitor_name_is_stored_in_session(self):
+        self._set_visitor_name("Alex")
+        self.assertEqual(self.client.session["visitor_name"], "Alex")
+
+    def test_visitor_name_is_shown_on_the_page_after_being_set(self):
+        self._set_visitor_name("Alex")
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertContains(response, "Flagging as: Alex")
+
+    def test_flagging_a_restaurant_creates_a_want_to_go_record(self):
+        self._set_visitor_name("Alex")
+        self.client.post(
+            reverse("restaurants:toggle_want_to_go", args=[self.pizza.id])
+        )
+        self.assertTrue(
+            WantToGo.objects.filter(restaurant=self.pizza, name="Alex").exists()
+        )
+
+    def test_flagging_twice_unflags_the_restaurant(self):
+        self._set_visitor_name("Alex")
+        url = reverse("restaurants:toggle_want_to_go", args=[self.pizza.id])
+        self.client.post(url)
+        self.assertTrue(
+            WantToGo.objects.filter(restaurant=self.pizza, name="Alex").exists()
+        )
+
+        self.client.post(url)
+        self.assertFalse(
+            WantToGo.objects.filter(restaurant=self.pizza, name="Alex").exists()
+        )
+
+    def test_flagging_without_a_visitor_name_does_nothing(self):
+        self.client.post(
+            reverse("restaurants:toggle_want_to_go", args=[self.pizza.id])
+        )
+        self.assertFalse(WantToGo.objects.filter(restaurant=self.pizza).exists())
+
+    def test_flagging_one_restaurant_does_not_affect_another(self):
+        self._set_visitor_name("Alex")
+        self.client.post(
+            reverse("restaurants:toggle_want_to_go", args=[self.pizza.id])
+        )
+        self.assertTrue(
+            WantToGo.objects.filter(restaurant=self.pizza, name="Alex").exists()
+        )
+        self.assertFalse(
+            WantToGo.objects.filter(restaurant=self.ramen, name="Alex").exists()
+        )
+
+    def test_duplicate_flag_for_same_person_and_restaurant_is_prevented_at_model_level(self):
+        WantToGo.objects.create(restaurant=self.pizza, name="Alex")
+        with self.assertRaises(IntegrityError):
+            WantToGo.objects.create(restaurant=self.pizza, name="Alex")
+
+    def test_different_people_can_flag_the_same_restaurant(self):
+        WantToGo.objects.create(restaurant=self.pizza, name="Alex")
+        WantToGo.objects.create(restaurant=self.pizza, name="Sam")
+        self.assertEqual(
+            WantToGo.objects.filter(restaurant=self.pizza).count(), 2
+        )
+
+    def test_list_page_displays_names_of_people_who_flagged_a_restaurant(self):
+        WantToGo.objects.create(restaurant=self.pizza, name="Alex")
+        WantToGo.objects.create(restaurant=self.pizza, name="Sam")
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertContains(response, "Alex, Sam")
+
+    def test_list_page_shows_placeholder_when_nobody_has_flagged_a_restaurant(self):
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertContains(response, "No one yet")
+
+    def test_want_to_go_button_toggles_label_based_on_visitor_flag_state(self):
+        self._set_visitor_name("Alex")
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertContains(response, "Want to Go")
+        self.assertNotContains(response, "Remove Want to Go")
+
+        self.client.post(
+            reverse("restaurants:toggle_want_to_go", args=[self.pizza.id])
+        )
+        response = self.client.get(reverse("restaurants:restaurant_list"))
+        self.assertContains(response, "Remove Want to Go")
