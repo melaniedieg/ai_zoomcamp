@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NYC Restaurant Explorer</title>
+</head>
+<body>
+    <h1>NYC Restaurant Explorer</h1>
+
+    {% if restaurants %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Borough</th>
+                <th>Cuisine</th>
+                <th>Address</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for restaurant in restaurants %}
+            <tr>
+                <td>{{ restaurant.name }}</td>
+                <td>{{ restaurant.borough }}</td>
+                <td>{{ restaurant.cuisine }}</td>
+                <td>{{ restaurant.address }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No restaurants found.</p>
+    {% endif %}
+</body>
+</html>
